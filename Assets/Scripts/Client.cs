@@ -9,30 +9,74 @@ public class Client
     private NetworkStream stream;
     private byte[] intBuffer = new byte[4];
 
+    public delegate void ConnectedCallback();
+
+    public ConnectedCallback OnConnectedCallback;
+
+    public enum ConnectedState
+    {
+        NotConnected,
+        Connecting,
+        PreConnected,
+        Error,
+        Connected
+    }
+
+    public ConnectedState State { get; private set; }
+
     private List<ClientPacket> packetsToSend = new List<ClientPacket>();
 
     public Client()
     {
-
+        State = ConnectedState.NotConnected;
     }
 
     public void Connect(string server, int port)
     {
-        ClientSocket = new TcpClient(server, port);
-        stream = ClientSocket.GetStream();
+        State = ConnectedState.Connecting;
 
-        var packet = Send(Commands.Type.Message);
-        packet.WriteByte(0x02);
-        packet.WriteString("Hi from Unity!");
+        ClientSocket = new TcpClient();
+        ClientSocket.Connect(server, port);
+        State = ConnectedState.Connecting;
     }
 
     public void CheckNetwork()
     {
-        if (stream == null || !stream.DataAvailable)
+        if (ClientSocket.Connected && State == ConnectedState.Connecting)
+        {
+            State = ConnectedState.PreConnected;
+        }
+
+        Debug.Log("Current state: " + State.ToString());
+        if (State == ConnectedState.NotConnected || State == ConnectedState.Connecting)
         {
             return;
         }
 
+        if (State == ConnectedState.PreConnected)
+        {
+            stream = ClientSocket.GetStream();
+            State = ConnectedState.Connected;
+            if (OnConnectedCallback != null)
+            {
+                OnConnectedCallback();
+            }
+            var packet = Send(Commands.Type.Message);
+            packet.WriteByte(0x02);
+            packet.WriteString("Hi from Unity!");
+        }
+
+        if (State != ConnectedState.Connected || stream == null || !stream.DataAvailable)
+        {
+            return;
+        }
+
+        ProcessIncoming();
+        ProcessOutgoing();
+    }
+
+    private void ProcessIncoming()
+    {
         while (stream.DataAvailable)
         {
             stream.Read(intBuffer, 0, 4);
@@ -45,19 +89,18 @@ public class Client
             stream.Read(buffer, 0, length);
             var packet = new ServerPacket(buffer);
         
-            var command = packet.ReadByte();
-            switch (command)
+            var command = (Commands.Type)packet.ReadByte();
+            if (command == Commands.Type.Message)
             {
-                case 0x01:
-                    {
-                        var messageType = packet.ReadByte();
-                        var message = packet.ReadString();
-                        Debug.Log("Message: " + messageType + ": " + message);
-                    }
-                    break;
+                var messageType = packet.ReadByte();
+                var message = packet.ReadString();
+                Debug.Log("Message: " + messageType + ": " + message);
             }
         }
 
+    }
+    private void ProcessOutgoing()
+    {
         foreach (var packet in packetsToSend)
         {
             var l = packet.Data.Count;
