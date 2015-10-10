@@ -9,6 +9,8 @@ public class Client
     private NetworkStream stream;
     private byte[] intBuffer = new byte[4];
 
+    public readonly List<ServerPacket> IncomingData = new List<ServerPacket>();
+
     public delegate void ConnectedCallback();
 
     public ConnectedCallback OnConnectedCallback;
@@ -47,7 +49,6 @@ public class Client
             State = ConnectedState.PreConnected;
         }
 
-        Debug.Log("Current state: " + State.ToString());
         if (State == ConnectedState.NotConnected || State == ConnectedState.Connecting)
         {
             return;
@@ -61,9 +62,6 @@ public class Client
             {
                 OnConnectedCallback();
             }
-            var packet = Send(Commands.Type.Message);
-            packet.WriteByte(0x02);
-            packet.WriteString("Hi from Unity!");
         }
 
         if (State != ConnectedState.Connected || stream == null || !stream.DataAvailable)
@@ -89,15 +87,8 @@ public class Client
             stream.Read(buffer, 0, length);
             var packet = new ServerPacket(buffer);
         
-            var command = (Commands.Type)packet.ReadByte();
-            if (command == Commands.Type.Message)
-            {
-                var messageType = packet.ReadByte();
-                var message = packet.ReadString();
-                Debug.Log("Message: " + messageType + ": " + message);
-            }
+            IncomingData.Add(packet);
         }
-
     }
     private void ProcessOutgoing()
     {
