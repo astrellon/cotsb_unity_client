@@ -1,18 +1,11 @@
 ﻿using UnityEngine;
 using System.Collections;
 
-public class CotsbGameObjectDeserialiser : MonoBehaviour 
+public class CotsbGameObjectDeserialiser
 {
-
-	// Use this for initialization
-	void Start () 
+    public static CotsbGameObject Deserialise()
     {
-	
-	}
-	
-	// Update is called once per frame
-	void Update () 
-    {
-	
-	}
+        var result = CotsbGameObjectManager.Create<CotsbGameObject>();
+        return result;
+    }
 }
